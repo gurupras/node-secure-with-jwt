@@ -1,6 +1,6 @@
 {
   "name": "@gurupras/secure-with-jwt",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Secure Express, socket.io with JWT",
   "main": "index.js",
   "scripts": {
