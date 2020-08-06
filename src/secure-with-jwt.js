@@ -20,7 +20,7 @@ function checkArrayTypes (name, arr, innerTypes) {
   }
 }
 
-function getAllKeyFunctions (getKey, jwksClients, log) {
+function getAllKeyFunctions (getKey, jwksClients, log = debug) {
   const keyFunctions = []
 
   if (jwksClients && jwksClients.length > 0) {
@@ -185,5 +185,7 @@ function secureSocketIOWithJWT (io, { getKey, jwksClient, log = debug }) {
 
 module.exports = {
   secureExpressWithJWT,
-  secureSocketIOWithJWT
+  secureSocketIOWithJWT,
+  getAllKeyFunctions,
+  verifyJWT
 }
