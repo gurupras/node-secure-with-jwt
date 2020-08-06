@@ -23,11 +23,12 @@ function getKey (headers, cb) {
   cb(null, getJWTPublicKey())
 }
 
-function createMockJWKSClient () {
+function createMockJWKSClient (customGetKeyModifier = () => {}) {
   return {
     getSigningKey: jest.fn().mockImplementation(async (kid, cb) => {
       return getKey(null, (err, rsaPublicKey) => {
         const result = { rsaPublicKey }
+        customGetKeyModifier(result)
         cb(err, result)
       })
     })
@@ -134,8 +135,10 @@ describe('secureExpressWithJWT', () => {
 
   describe('jwksClient', () => {
     let jwksClient
+    let badJwksClient
     let opts
     beforeEach(() => {
+      badJwksClient = createMockJWKSClient(result => { result.rsaPublicKey = 'bad-string' })
       jwksClient = createMockJWKSClient()
       opts = { jwksClient, paths: '/jwks-test' }
     })
@@ -156,11 +159,39 @@ describe('secureExpressWithJWT', () => {
         .set('Authorization', `Bearer ${accessToken}`)
       expect(response.status).toBe(200)
     })
+
+    test('Works with multiple jwksClients', async () => {
+      opts.jwksClient = [badJwksClient, jwksClient]
+      expect(() => secureExpressWithJWT(app, opts)).not.toThrow()
+      setupTestEndpoint()
+      let response = await request(app)
+        .get('/jwks-test/test')
+      expect(response.status).toBe(401)
+      response = await request(app)
+        .get('/jwks-test/test')
+        .set('Authorization', `Bearer ${accessToken}`)
+      expect(response.status).toBe(200)
+    })
     test('Works with jwksClient and getKey', async () => {
       jwksClient.getSigningKey = jest.fn().mockImplementation((header, cb) => {
         cb(new Error('bad'), null)
       })
       Object.assign(opts, { getKey })
+      expect(() => secureExpressWithJWT(app, opts)).not.toThrow()
+      setupTestEndpoint()
+      let response = await request(app).get('/jwks-test/test')
+      expect(response.status).toBe(401)
+      response = await request(app)
+        .get('/jwks-test/test')
+        .set('Authorization', `Bearer ${accessToken}`)
+      expect(response.status).toBe(200)
+    })
+    test('Works with multiple jwksClients and getKeys', async () => {
+      const badGetKey = (headers, cb) => cb(null, 'bad-string')
+      Object.assign(opts, {
+        jwksClient: [badJwksClient, badJwksClient],
+        getKey: [badGetKey, getKey]
+      })
       expect(() => secureExpressWithJWT(app, opts)).not.toThrow()
       setupTestEndpoint()
       let response = await request(app).get('/jwks-test/test')
@@ -351,10 +382,17 @@ describe('secureSocketIOWithJWT', () => {
     await expect(testJWT({ getKey: 'bad' })).toReject()
   })
   test('Calling with getKey secures the socket.io server', async () => {
-    await expect(testJWT({ getKey })).toResolve()
+    await expect(testJWT({ getKey })).resolves.toBeUndefined()
   })
   test('Calling with jwksClient secures the socket.io server', async () => {
     const jwksClient = createMockJWKSClient()
-    await expect(testJWT({ jwksClient })).toResolve()
+    await expect(testJWT({ jwksClient })).resolves.toBeUndefined()
+  })
+  test('Calling with array of jwksClient secures the socket.io server', async () => {
+    const badJwksClient = createMockJWKSClient(result => {
+      result.rsaPublicKey = 'bad-string'
+    })
+    const validJwksClient = createMockJWKSClient()
+    await expect(testJWT({ jwksClient: [badJwksClient, badJwksClient, validJwksClient] })).resolves.toBeUndefined()
   })
 })

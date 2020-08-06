@@ -20,22 +20,24 @@ function checkArrayTypes (name, arr, innerTypes) {
   }
 }
 
-function getAllKeyFunctions (getKey, jwksClient, log) {
+function getAllKeyFunctions (getKey, jwksClients, log) {
   const keyFunctions = []
 
-  if (jwksClient) {
-    if (jwksClient && getKey) {
+  if (jwksClients && jwksClients.length > 0) {
+    if (getKey && getKey.length > 0) {
       log.warn('Both, jwksClient and getKey were specified.. jwksClient will be prioritized')
     }
-    keyFunctions.push((header, callback) => {
-      jwksClient.getSigningKey(header.kid, (err, key) => {
-        if (err) {
-          return callback(err, null)
-        }
-        var signingKey = key.publicKey || key.rsaPublicKey
-        callback(null, signingKey)
+    for (const jwksClient of jwksClients) {
+      keyFunctions.push((header, callback) => {
+        jwksClient.getSigningKey(header.kid, (err, key) => {
+          if (err) {
+            return callback(err, null)
+          }
+          var signingKey = key.publicKey || key.rsaPublicKey
+          callback(null, signingKey)
+        })
       })
-    })
+    }
   }
 
   // Add all getKey functions to keyFunctions
@@ -93,6 +95,15 @@ function secureExpressWithJWT (app, { getKey, jwksClient, paths = '/api', ignore
     checkArrayTypes('getKey', getKey, ['function'])
   }
 
+  if (jwksClient) {
+    if (!(jwksClient instanceof Array) && typeof jwksClient === 'object') {
+      jwksClient = [jwksClient]
+    }
+  }
+  if (jwksClient !== undefined) {
+    checkArrayTypes('jwksClient', jwksClient, 'object')
+  }
+
   // We need to add cookieParser
   // TODO: Figure out a way to check if this has already been added by the app
   // and if it has, does it matter if we add it again?
@@ -144,6 +155,15 @@ function secureSocketIOWithJWT (io, { getKey, jwksClient, log = debug }) {
   }
   if (getKey !== undefined) {
     checkArrayTypes('getKey', getKey, ['function'])
+  }
+
+  if (jwksClient !== undefined) {
+    if (!(jwksClient instanceof Array) && typeof jwksClient === 'object') {
+      jwksClient = [jwksClient]
+    }
+  }
+  if (jwksClient !== undefined) {
+    checkArrayTypes('jwksClient', jwksClient, 'object')
   }
 
   const keyFunctions = getAllKeyFunctions(getKey, jwksClient, log)
