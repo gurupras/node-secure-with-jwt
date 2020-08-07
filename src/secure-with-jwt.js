@@ -109,7 +109,9 @@ function secureExpressWithJWT (app, { getKey, jwksClient, paths = '/api', ignore
   // and if it has, does it matter if we add it again?
   app.use(cookieParser())
 
-  const ignorePatterns = ignore.map((x) => pathToRegexp(x))
+  const ignorePatterns = ignore.map((x) => pathToRegexp(x, null, {
+    end: false
+  }))
   const keyFunctions = getAllKeyFunctions(getKey, jwksClient, log)
 
   async function decodeAuthorizationHeader (req) {

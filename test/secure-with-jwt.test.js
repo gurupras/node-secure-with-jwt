@@ -234,13 +234,8 @@ describe('secureExpressWithJWT', () => {
       // Now, test the ignore
       response = await request(app).get('/test/avatar')
       expect(response.status).toBe(200)
-      response = await request(app).get('/test/restricted/avatar')
+      response = await request(app).get('/test/restricted/avatar/test-user')
       expect(response.status).toBe(200)
-      // Make sure deeper paths are still restricted
-      response = await request(app).get('/test/avatar/dummy')
-      expect(response.status).toBe(401)
-
-      // Test the second path
     })
   })
 
