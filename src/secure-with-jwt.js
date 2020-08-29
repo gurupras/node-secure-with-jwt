@@ -25,7 +25,7 @@ function getAllKeyFunctions (getKey, jwksClients, log = debug) {
 
   if (jwksClients && jwksClients.length > 0) {
     if (getKey && getKey.length > 0) {
-      log.warn('Both, jwksClient and getKey were specified.. jwksClient will be prioritized')
+      log.debug('Both, jwksClient and getKey were specified.. jwksClient will be prioritized')
     }
     for (const jwksClient of jwksClients) {
       keyFunctions.push((header, callback) => {
