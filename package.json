@@ -23,7 +23,6 @@
     "@gurupras/test-helpers": "^0.2.1",
     "@types/jest": "^26.0.10",
     "babel-jest": "^26.3.0",
-    "debug-logger": "^0.4.1",
     "eslint": "^7.7.0",
     "eslint-config-standard": "^14.1.1",
     "eslint-plugin-import": "^2.22.0",
@@ -41,6 +40,7 @@
   },
   "dependencies": {
     "cookie-parser": "^1.4.5",
+    "debug-logger": "^0.4.1",
     "jsonwebtoken": "^8.5.1",
     "path-to-regexp": "^6.1.0"
   }
