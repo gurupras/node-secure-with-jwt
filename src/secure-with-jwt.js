@@ -175,7 +175,14 @@ function secureSocketIOWithJWT (io, { getKey, jwksClient, log = debug }) {
 
   io.use(async (socket, next) => {
     try {
-      const { handshake: { query: { token } } } = socket
+      const { handshake: { query, auth } } = socket
+      let token
+      if (auth) {
+        // Socket.io v3+
+        ;({ token } = auth)
+      } else {
+        ;({ token } = query)
+      }
       socket.decoded = await verifyJWT(token, keyFunctions)
       next()
     } catch (e) {
