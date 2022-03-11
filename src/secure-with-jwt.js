@@ -114,13 +114,13 @@ function secureExpressWithJWT (app, { getKey, jwksClient, paths = '/api', ignore
   }))
   const keyFunctions = getAllKeyFunctions(getKey, jwksClient, log)
 
-  async function decodeAuthorizationHeader (req) {
+  function getAccessTokenFromAuthorizationHeader (req) {
     const { headers: { authorization = '' } } = req
     if (!authorization.startsWith('Bearer ')) {
       throw new Error('Invalid token')
     }
     const accessToken = authorization.substr(7)
-    return verifyJWT(accessToken, keyFunctions)
+    return accessToken
   }
 
   async function middleware (req, res, next) {
@@ -136,7 +136,9 @@ function secureExpressWithJWT (app, { getKey, jwksClient, paths = '/api', ignore
       res.status(401).send('Unauthorized')
     }
     try {
-      req.decoded = await decodeAuthorizationHeader(req)
+      const accessToken = getAccessTokenFromAuthorizationHeader(req)
+      req.decoded = await verifyJWT(accessToken, keyFunctions)
+      req.token = accessToken
     } catch (e) {
       log.error(e)
       return unauthorized(e)
@@ -184,6 +186,7 @@ function secureSocketIOWithJWT (io, { getKey, jwksClient, log = debug }) {
         ;({ token } = query)
       }
       socket.decoded = await verifyJWT(token, keyFunctions)
+      socket.token = token
       next()
     } catch (e) {
       log.error(`Failed to decode token: ${e}`)
