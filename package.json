@@ -41,7 +41,7 @@
   "dependencies": {
     "cookie-parser": "^1.4.5",
     "debug-logger": "^0.4.1",
-    "jsonwebtoken": "^8.5.1",
+    "jsonwebtoken": "^9.0.0",
     "path-to-regexp": "^6.1.0"
   }
 }
