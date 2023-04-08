@@ -4,7 +4,7 @@
   "description": "Secure Express, socket.io with JWT",
   "type": "module",
   "main": "dist/secure-with-jwt.cjs",
-  "module": "dist/secure-with-jwt.js",
+  "module": "src/secure-with-jwt.js",
   "scripts": {
     "build": "vite build",
     "test": "vitest run --coverage",
@@ -48,5 +48,8 @@
     "src/",
     "index.js",
     "dist/"
-  ]
+  ],
+  "exports": {
+    ".": "./src/secure-with-jwt.js"
+  }
 }
