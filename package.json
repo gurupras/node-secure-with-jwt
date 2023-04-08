@@ -21,7 +21,7 @@
   },
   "homepage": "https://github.com/gurupras/node-secure-with-jwt#readme",
   "devDependencies": {
-    "@gurupras/test-helpers": "^0.2.2",
+    "@gurupras/test-helpers": "^0.5.0",
     "@vitest/coverage-c8": "^0.29.8",
     "eslint": "^8.38.0",
     "eslint-config-standard": "^17.0.0",
@@ -30,18 +30,18 @@
     "eslint-plugin-promise": "^6.1.1",
     "express": "^4.18.2",
     "jest-extended": "^3.2.4",
+    "jsonwebtoken": "^8.5.1",
     "node-rsa": "^1.1.1",
     "portfinder": "^1.0.32",
-    "socket.io": "^2.4.1",
-    "socket.io-client": "^2.4.0",
-    "supertest": "^4.0.2",
+    "socket.io": "^2.5.0",
+    "socket.io-client": "^2.5.0",
+    "supertest": "^6.3.3",
     "vite": "^4.2.1",
     "vitest": "^0.29.8"
   },
   "dependencies": {
     "@gurupras/log": "^0.7.0",
     "cookie-parser": "^1.4.6",
-    "jsonwebtoken": "^8.5.1",
     "path-to-regexp": "^6.2.1"
   },
   "files": [
