@@ -2,9 +2,12 @@
   "name": "@gurupras/secure-with-jwt",
   "version": "0.4.1",
   "description": "Secure Express, socket.io with JWT",
-  "main": "index.js",
+  "type": "module",
+  "main": "dist/secure-with-jwt.cjs",
+  "module": "dist/secure-with-jwt.js",
   "scripts": {
-    "test": "jest",
+    "build": "vite build",
+    "test": "vitest run --coverage",
     "debug:test": "node --inspect-brk node_modules/.bin/jest --coverage=false"
   },
   "repository": {
@@ -18,30 +21,32 @@
   },
   "homepage": "https://github.com/gurupras/node-secure-with-jwt#readme",
   "devDependencies": {
-    "@babel/core": "^7.17.5",
-    "@babel/preset-env": "^7.16.11",
     "@gurupras/test-helpers": "^0.2.2",
-    "@types/jest": "^26.0.24",
-    "babel-jest": "^26.6.3",
-    "eslint": "^7.32.0",
-    "eslint-config-standard": "^14.1.1",
-    "eslint-plugin-import": "^2.25.4",
-    "eslint-plugin-jest": "^23.20.0",
-    "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-promise": "^4.3.1",
-    "eslint-plugin-standard": "^4.1.0",
-    "express": "^4.17.3",
-    "jest": "^26.6.3",
-    "jest-extended": "^0.11.5",
+    "@vitest/coverage-c8": "^0.29.8",
+    "eslint": "^8.38.0",
+    "eslint-config-standard": "^17.0.0",
+    "eslint-plugin-import": "^2.27.5",
+    "eslint-plugin-n": "^15.7.0",
+    "eslint-plugin-promise": "^6.1.1",
+    "express": "^4.18.2",
+    "jest-extended": "^3.2.4",
     "node-rsa": "^1.1.1",
+    "portfinder": "^1.0.32",
     "socket.io": "^2.4.1",
     "socket.io-client": "^2.4.0",
-    "supertest": "^4.0.2"
+    "supertest": "^4.0.2",
+    "vite": "^4.2.1",
+    "vitest": "^0.29.8"
   },
   "dependencies": {
+    "@gurupras/log": "^0.7.0",
     "cookie-parser": "^1.4.6",
-    "debug-logger": "^0.4.1",
     "jsonwebtoken": "^8.5.1",
-    "path-to-regexp": "^6.2.0"
-  }
+    "path-to-regexp": "^6.2.1"
+  },
+  "files": [
+    "src/",
+    "index.js",
+    "dist/"
+  ]
 }

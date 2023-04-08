@@ -1,2 +1,1 @@
-const secureWithJWT = require('./src/secure-with-jwt')
-module.exports = secureWithJWT
+export * from './src/secure-with-jwt.js'

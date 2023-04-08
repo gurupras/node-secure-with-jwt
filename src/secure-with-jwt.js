@@ -1,10 +1,14 @@
-const jwt = require('jsonwebtoken')
-const cookieParser = require('cookie-parser')
-const { pathToRegexp } = require('path-to-regexp')
+import jwt from 'jsonwebtoken'
+import cookieParser from 'cookie-parser'
+import { pathToRegexp } from 'path-to-regexp'
 
-const debugLogger = require('debug-logger')
-
-const debug = debugLogger('secure-with-jwt')
+const nullLogger = {
+  debug () {},
+  info () {},
+  warn () {},
+  error () {},
+  fatal () {}
+}
 
 function checkArrayTypes (name, arr, innerTypes) {
   if (typeof innerTypes === 'string') {
@@ -20,7 +24,7 @@ function checkArrayTypes (name, arr, innerTypes) {
   }
 }
 
-function getAllKeyFunctions (getKey, jwksClients, log = debug) {
+function getAllKeyFunctions (getKey, jwksClients, log = nullLogger) {
   const keyFunctions = []
 
   if (jwksClients && jwksClients.length > 0) {
@@ -33,7 +37,7 @@ function getAllKeyFunctions (getKey, jwksClients, log = debug) {
           if (err) {
             return callback(err, null)
           }
-          var signingKey = key.publicKey || key.rsaPublicKey
+          const signingKey = key.publicKey || key.rsaPublicKey
           callback(null, signingKey)
         })
       })
@@ -69,7 +73,7 @@ async function verifyJWT (token, keyFunctions) {
   throw err
 }
 
-function secureExpressWithJWT (app, { getKey, jwksClient, paths = '/api', ignore = [], log = debug }) {
+function secureExpressWithJWT (app, { getKey, jwksClient, paths = '/api', ignore = [], log = nullLogger }) {
   if (typeof paths !== 'string' && !paths) {
     throw new Error('Must specify at least one path')
   } else {
@@ -151,7 +155,7 @@ function secureExpressWithJWT (app, { getKey, jwksClient, paths = '/api', ignore
   }
 }
 
-function secureSocketIOWithJWT (io, { getKey, jwksClient, log = debug }) {
+function secureSocketIOWithJWT (io, { getKey, jwksClient, log = nullLogger }) {
   if (getKey) {
     if (typeof getKey === 'function') {
       getKey = [getKey]
@@ -195,7 +199,7 @@ function secureSocketIOWithJWT (io, { getKey, jwksClient, log = debug }) {
   })
 }
 
-module.exports = {
+export {
   secureExpressWithJWT,
   secureSocketIOWithJWT,
   getAllKeyFunctions,

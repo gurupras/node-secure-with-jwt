@@ -4,36 +4,29 @@ import jwt from 'jsonwebtoken'
 import NodeRSA from 'node-rsa'
 import request from 'supertest'
 import SocketIOServer from 'socket.io'
-import io from 'socket.io-client'
 import portfinder from 'portfinder'
+import { initialize as LogInitialize, getRootLogger } from '@gurupras/log'
+import { beforeEach, afterEach, describe, test, vitest, expect, beforeAll } from 'vitest'
+import { setupSocket, testForNoEvent, getJWTPrivateKey, getJWTPublicKey } from '@gurupras/test-helpers'
+
 import { secureExpressWithJWT, secureSocketIOWithJWT } from '../src/secure-with-jwt.js'
-import { setupSocket, testForEvent, testForNoEvent, getJWTPrivateKey, getJWTPublicKey, createUserJWT } from '@gurupras/test-helpers'
 
-import debugLogger from 'debug-logger'
-
-const log = debugLogger('secure-with-jwt')
-
+let log
 let app
 
 let key
 let accessToken
 const testAccountID = 'dummy'
 
-function getKey (headers, cb) {
-  cb(null, getJWTPublicKey())
-}
-
-function createMockJWKSClient (customGetKeyModifier = () => {}) {
-  return {
-    getSigningKey: jest.fn().mockImplementation(async (kid, cb) => {
-      return getKey(null, (err, rsaPublicKey) => {
-        const result = { rsaPublicKey }
-        customGetKeyModifier(result)
-        cb(err, result)
-      })
-    })
-  }
-}
+beforeAll(() => {
+  LogInitialize({
+    file: false,
+    stdout: {
+      level: 'fatal'
+    }
+  })
+  log = getRootLogger()
+})
 
 beforeEach(async () => {
   app = express()
@@ -47,7 +40,7 @@ beforeEach(async () => {
     algorithm: 'RS256'
   })
 
-  secureExpressWithJWT(app, { getKey })
+  secureExpressWithJWT(app, { getKey, log })
   app.get('/api/test', (req, res) => res.send('OK'))
 })
 
@@ -149,6 +142,9 @@ describe('secureExpressWithJWT', () => {
       })
     }
     test('Works with jwksClient', async () => {
+      app.get('/jwks-test/test', (req, res, next) => {
+        next()
+      })
       expect(() => secureExpressWithJWT(app, opts)).not.toThrow()
       setupTestEndpoint()
       let response = await request(app)
@@ -173,7 +169,7 @@ describe('secureExpressWithJWT', () => {
       expect(response.status).toBe(200)
     })
     test('Works with jwksClient and getKey', async () => {
-      jwksClient.getSigningKey = jest.fn().mockImplementation((header, cb) => {
+      jwksClient.getSigningKey = vitest.fn().mockImplementation((header, cb) => {
         cb(new Error('bad'), null)
       })
       Object.assign(opts, { getKey })
@@ -308,8 +304,10 @@ describe('secureSocketIOWithJWT', () => {
 
     server.listen(port)
   })
-  afterEach(done => {
-    server.close(done)
+  afterEach(async () => {
+    return new Promise(resolve => {
+      server.close(resolve)
+    })
   })
 
   function createSocket (user, opts) {
@@ -391,3 +389,19 @@ describe('secureSocketIOWithJWT', () => {
     await expect(testJWT({ jwksClient: [badJwksClient, badJwksClient, validJwksClient] })).resolves.toBeUndefined()
   })
 })
+
+function getKey (headers, cb) {
+  cb(null, getJWTPublicKey())
+}
+
+function createMockJWKSClient (customGetKeyModifier = () => { }) {
+  return {
+    getSigningKey: vitest.fn().mockImplementation(async (kid, cb) => {
+      return getKey(null, (err, rsaPublicKey) => {
+        const result = { rsaPublicKey }
+        customGetKeyModifier(result)
+        cb(err, result)
+      })
+    })
+  }
+}
