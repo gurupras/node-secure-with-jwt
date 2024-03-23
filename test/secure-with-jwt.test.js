@@ -9,7 +9,7 @@ import { initialize as LogInitialize, getRootLogger } from '@gurupras/log'
 import { beforeEach, afterEach, describe, test, vitest, expect, beforeAll } from 'vitest'
 import { setupSocket, testForNoEvent, getJWTPrivateKey, getJWTPublicKey } from '@gurupras/test-helpers'
 
-import { secureExpressWithJWT, secureSocketIOWithJWT } from '../src/secure-with-jwt.js'
+import { secureExpressWithJWT, secureSocketIOWithJWT } from '../index.js'
 
 let log
 let app
