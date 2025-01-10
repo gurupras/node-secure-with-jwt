@@ -5,6 +5,7 @@
     "test/**/*",
     "dist/**/*",
     "vitest.config.ts",
+    "vite.config.ts",
     "node_modules",
     "./node_modules",
     "./node_modules/*",

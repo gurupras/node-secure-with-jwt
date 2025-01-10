@@ -7,7 +7,7 @@ import { Server as SocketIOServer } from 'socket.io'
 import portfinder from 'portfinder'
 import { initialize as LogInitialize, Logger, getRootLogger } from '@gurupras/log'
 import { beforeEach, afterEach, describe, test, vitest, expect, beforeAll } from 'vitest'
-import { secureExpressWithJWT, secureSocketIOWithJWT } from '../src/index.js'
+import { secureExpressWithJWT, secureSocketIOWithJWT } from '../index.js'
 import { getJWTPrivateKey, getJWTPublicKey, setupSocket } from './utils.js'
 // @ts-ignore
 import { testForNoEvent } from '@gurupras/test-helpers'
