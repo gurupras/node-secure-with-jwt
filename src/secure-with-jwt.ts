@@ -4,12 +4,14 @@ import { pathToRegexp } from 'path-to-regexp'
 import { Application, Request, Response, NextFunction } from 'express'
 import { Server, Socket } from 'socket.io'
 import { Logger } from '@gurupras/log'
+import { Options as JwksClientOptions, JwksClient } from 'jwks-rsa'
 
 export type KeyFunction = (header: jwt.JwtHeader, callback: (err: Error | null, key?: string) => void) => void;
 
 export interface SecureOptions {
   getKey?: KeyFunction | KeyFunction[];
-  jwksClient?: any | any[];
+  jwksClientOpts?: Array<JwksClientOptions>
+  jwksClient?: JwksClient | Array<JwksClient>
   paths?: string | string[];
   ignore?: string | string[];
   log?: Logger;
@@ -17,7 +19,8 @@ export interface SecureOptions {
 
 interface SocketIOOptions {
   getKey?: KeyFunction | KeyFunction[];
-  jwksClient?: any | any[];
+  jwksClientOpts?: Array<JwksClientOptions>
+  jwksClient?: JwksClient | Array<JwksClient>
   log?: Logger;
 }
 
@@ -97,7 +100,7 @@ export async function verifyJWT (token: string, keyFunctions: KeyFunction[]): Pr
 }
 
 export function secureExpressWithJWT (app: Application, options: SecureOptions) {
-  let { getKey, jwksClient, paths = '/api', ignore = [], log = nullLogger } = options
+  let { getKey, jwksClientOpts, jwksClient, paths = '/api', ignore = [], log = nullLogger } = options
 
   if (typeof paths !== 'string' && !paths) {
     throw new Error('Must specify at least one path')
@@ -131,6 +134,14 @@ export function secureExpressWithJWT (app: Application, options: SecureOptions) 
   }
   if (jwksClient !== undefined) {
     checkArrayTypes('jwksClient', jwksClient, 'object')
+  }
+
+  if (jwksClientOpts !== undefined && Array.isArray(jwksClientOpts)) {
+    for (const opts of jwksClientOpts) {
+      const client = new JwksClient(opts)
+      jwksClient = jwksClient || []
+      jwksClient.push(client)
+    }
   }
   // We need to add cookieParser
   app.use(cookieParser())
@@ -175,7 +186,7 @@ export function secureExpressWithJWT (app: Application, options: SecureOptions) 
 }
 
 export function secureSocketIOWithJWT (io: Server, options: SocketIOOptions) {
-  let { getKey, jwksClient, log = nullLogger } = options
+  let { getKey, jwksClientOpts, jwksClient, log = nullLogger } = options
 
   if (getKey) {
     if (typeof getKey === 'function') {
@@ -193,6 +204,14 @@ export function secureSocketIOWithJWT (io: Server, options: SocketIOOptions) {
   }
   if (jwksClient !== undefined) {
     checkArrayTypes('jwksClient', jwksClient, 'object')
+  }
+
+  if (jwksClientOpts !== undefined && Array.isArray(jwksClientOpts)) {
+    for (const opts of jwksClientOpts) {
+      const client = new JwksClient(opts)
+      jwksClient = jwksClient || []
+      jwksClient.push(client)
+    }
   }
 
   const keyFunctions = getAllKeyFunctions(getKey, jwksClient, log)
