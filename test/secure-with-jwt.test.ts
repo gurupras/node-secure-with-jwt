@@ -3,26 +3,30 @@ import express from 'express'
 import jwt from 'jsonwebtoken'
 import NodeRSA from 'node-rsa'
 import request from 'supertest'
-import SocketIOServer from 'socket.io'
+import { Server as SocketIOServer } from 'socket.io'
 import portfinder from 'portfinder'
-import { initialize as LogInitialize, getRootLogger } from '@gurupras/log'
+import { initialize as LogInitialize, Logger, getRootLogger } from '@gurupras/log'
 import { beforeEach, afterEach, describe, test, vitest, expect, beforeAll } from 'vitest'
-import { setupSocket, testForNoEvent, getJWTPrivateKey, getJWTPublicKey } from '@gurupras/test-helpers'
+import { secureExpressWithJWT, secureSocketIOWithJWT } from '../src/index.js'
+import { getJWTPrivateKey, getJWTPublicKey, setupSocket } from './utils.js'
+// @ts-ignore
+import { testForNoEvent } from '@gurupras/test-helpers'
 
-import { secureExpressWithJWT, secureSocketIOWithJWT } from '../index.js'
+let log: Logger
+let app: express.Application
 
-let log
-let app
-
-let key
-let accessToken
+let key: string
+let accessToken: string
 const testAccountID = 'dummy'
 
 beforeAll(() => {
   LogInitialize({
     file: false,
     stdout: {
-      level: 'fatal'
+      level: 'fatal',
+      target: 'pino-pretty',
+      options: {
+      }
     }
   })
   log = getRootLogger()
@@ -41,7 +45,7 @@ beforeEach(async () => {
   })
 
   secureExpressWithJWT(app, { getKey, log })
-  app.get('/api/test', (req, res) => res.send('OK'))
+  app.get('/api/test', (req, res) => { res.send('OK') })
 })
 
 const values = [
@@ -63,7 +67,7 @@ const fields = [
 
 describe('setupFakeJWT', () => {
   test('Test fake JWT', async () => {
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       jwt.verify(accessToken, getKey, (err, decoded) => {
         expect(err).toBeNil()
         expect(decoded).toMatchObject({
@@ -71,8 +75,8 @@ describe('setupFakeJWT', () => {
           iat: expect.anything(),
           exp: expect.anything()
         })
-        expect(decoded.iat).toBeBefore(Date.now() / 1e3)
-        expect(decoded.exp).toBeAfter(Date.now() / 1e3)
+        expect(decoded!.iat).toBeBefore(new Date(Date.now() / 1e3))
+        expect(decoded!.exp).toBeAfter(new Date(Date.now() / 1e3))
         resolve()
       })
     })
@@ -80,8 +84,8 @@ describe('setupFakeJWT', () => {
 
   test('Ensure (fake) public-private keys matter', async () => {
     const getKey = (headers, cb) =>
-      cb(null, new NodeRSA({ b: 512 }).exportKey('public'))
-    return new Promise((resolve, reject) => {
+      cb(null, new NodeRSA({ b: 2048 }).exportKey('public'))
+    return new Promise<void>((resolve, reject) => {
       jwt.verify(accessToken, getKey, (err, decoded) => {
         expect(err).not.toBeNil()
         resolve()
@@ -92,7 +96,7 @@ describe('setupFakeJWT', () => {
 
 describe('secureExpressWithJWT', () => {
   describe('Setup', () => {
-    let data
+    let data: any
     beforeEach(() => {
       data = { getKey }
     })
@@ -127,9 +131,9 @@ describe('secureExpressWithJWT', () => {
   })
 
   describe('jwksClient', () => {
-    let jwksClient
-    let badJwksClient
-    let opts
+    let jwksClient: any
+    let badJwksClient: any
+    let opts: any
     beforeEach(() => {
       badJwksClient = createMockJWKSClient(result => { result.rsaPublicKey = 'bad-string' })
       jwksClient = createMockJWKSClient()
@@ -286,9 +290,9 @@ describe('secureExpressWithJWT', () => {
 })
 
 describe('secureSocketIOWithJWT', () => {
-  let server
-  let ioServer
-  let port
+  let server: http.Server
+  let ioServer: SocketIOServer
+  let port: number
   beforeEach(async () => {
     app = express()
     server = http.createServer(app)
@@ -310,7 +314,7 @@ describe('secureSocketIOWithJWT', () => {
     })
   })
 
-  function createSocket (user, opts) {
+  function createSocket (user: any, opts: any) {
     const { waitForConnect = 'ready' } = opts
     Object.assign(opts, {
       waitForConnect
@@ -318,10 +322,10 @@ describe('secureSocketIOWithJWT', () => {
     return setupSocket(user, port, opts)
   }
 
-  async function testJWT (opts) {
+  async function testJWT (opts: any) {
     expect(() => secureSocketIOWithJWT(ioServer, opts)).not.toThrow()
     let socket = await createSocket('user', { withJWT: false, noOpen: true })
-    const promise = testForNoEvent(socket, 'ready')
+    const promise = testForNoEvent(socket, 'ready', { timeout: 300 })
     socket.open()
     log.debug('Opened socket')
     await promise

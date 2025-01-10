@@ -1,16 +1,40 @@
 import jwt from 'jsonwebtoken'
 import cookieParser from 'cookie-parser'
 import { pathToRegexp } from 'path-to-regexp'
+import { Application, Request, Response, NextFunction } from 'express'
+import { Server, Socket } from 'socket.io'
+import { Logger } from '@gurupras/log'
 
-const nullLogger = {
+export type KeyFunction = (header: jwt.JwtHeader, callback: (err: Error | null, key?: string) => void) => void;
+
+export interface SecureOptions {
+  getKey?: KeyFunction | KeyFunction[];
+  jwksClient?: any | any[];
+  paths?: string | string[];
+  ignore?: string | string[];
+  log?: Logger;
+}
+
+interface SocketIOOptions {
+  getKey?: KeyFunction | KeyFunction[];
+  jwksClient?: any | any[];
+  log?: Logger;
+}
+
+export interface AuthenticatedRequest extends Request {
+  decoded: any
+  token: string
+}
+
+const nullLogger: Logger = {
   debug () {},
   info () {},
   warn () {},
   error () {},
   fatal () {}
-}
+} as any
 
-function checkArrayTypes (name, arr, innerTypes) {
+function checkArrayTypes (name: string, arr: any, innerTypes: string | string[]) {
   if (typeof innerTypes === 'string') {
     innerTypes = [innerTypes]
   }
@@ -24,8 +48,8 @@ function checkArrayTypes (name, arr, innerTypes) {
   }
 }
 
-function getAllKeyFunctions (getKey, jwksClients, log = nullLogger) {
-  const keyFunctions = []
+export function getAllKeyFunctions (getKey: KeyFunction[] | undefined, jwksClients: any[] | undefined, log: Logger = nullLogger): KeyFunction[] {
+  const keyFunctions: KeyFunction[] = []
 
   if (jwksClients && jwksClients.length > 0) {
     if (getKey && getKey.length > 0) {
@@ -33,9 +57,9 @@ function getAllKeyFunctions (getKey, jwksClients, log = nullLogger) {
     }
     for (const jwksClient of jwksClients) {
       keyFunctions.push((header, callback) => {
-        jwksClient.getSigningKey(header.kid, (err, key) => {
+        jwksClient.getSigningKey(header.kid, (err: Error, key: any) => {
           if (err) {
-            return callback(err, null)
+            return callback(err, '')
           }
           const signingKey = key.publicKey || key.rsaPublicKey
           callback(null, signingKey)
@@ -44,18 +68,17 @@ function getAllKeyFunctions (getKey, jwksClients, log = nullLogger) {
     }
   }
 
-  // Add all getKey functions to keyFunctions
   if (getKey) {
     keyFunctions.push(...getKey)
   }
   return keyFunctions
 }
 
-async function verifyJWT (token, keyFunctions) {
-  const errors = []
+export async function verifyJWT (token: string, keyFunctions: KeyFunction[]): Promise<any> {
+  const errors: string[] = []
   for (const keyFn of keyFunctions) {
     try {
-      const decoded = await new Promise(function (resolve, reject) {
+      const decoded = await new Promise<any>((resolve, reject) => {
         jwt.verify(token, keyFn, (err, decoded) => {
           if (err) {
             return reject(err)
@@ -64,16 +87,18 @@ async function verifyJWT (token, keyFunctions) {
         })
       })
       return decoded
-    } catch (e) {
+    } catch (e: any) {
       errors.push(e.message)
     }
   }
-  const err = new Error('Failed to verify token')
-  err.errors = errors
+  const err = new Error('Failed to verify token');
+  (err as any).errors = errors
   throw err
 }
 
-function secureExpressWithJWT (app, { getKey, jwksClient, paths = '/api', ignore = [], log = nullLogger }) {
+export function secureExpressWithJWT (app: Application, options: SecureOptions) {
+  let { getKey, jwksClient, paths = '/api', ignore = [], log = nullLogger } = options
+
   if (typeof paths !== 'string' && !paths) {
     throw new Error('Must specify at least one path')
   } else {
@@ -107,44 +132,38 @@ function secureExpressWithJWT (app, { getKey, jwksClient, paths = '/api', ignore
   if (jwksClient !== undefined) {
     checkArrayTypes('jwksClient', jwksClient, 'object')
   }
-
   // We need to add cookieParser
-  // TODO: Figure out a way to check if this has already been added by the app
-  // and if it has, does it matter if we add it again?
   app.use(cookieParser())
 
-  const ignorePatterns = ignore.map((x) => pathToRegexp(x, null, {
-    end: false
-  }))
+  const ignorePatterns = ignore.map((x) => pathToRegexp(x, { end: false }))
   const keyFunctions = getAllKeyFunctions(getKey, jwksClient, log)
 
-  function getAccessTokenFromAuthorizationHeader (req) {
+  function getAccessTokenFromAuthorizationHeader (req: Request): string {
     const { headers: { authorization = '' } } = req
     if (!authorization.startsWith('Bearer ')) {
       throw new Error('Invalid token')
     }
-    const accessToken = authorization.substr(7)
-    return accessToken
+    return authorization.substring(7)
   }
 
-  async function middleware (req, res, next) {
+  async function middleware (req: Request, res: Response, next: NextFunction) {
     const { originalUrl, headers: { authorization = '' } } = req
-    const ignoreMatch = ignorePatterns.find(pattern => pattern.test(originalUrl))
+    const ignoreMatch = ignorePatterns.find(pattern => pattern.regexp.test(originalUrl))
     if (ignoreMatch) {
       log.debug(`Skipping ${originalUrl} since it was matched by ${ignoreMatch}`)
       return next()
     }
 
-    function unauthorized (error) {
+    function unauthorized (error: Error) {
       log.error(`Failing request: ${req.url} due to token.`, { authorization, error })
       res.status(401).send('Unauthorized')
     }
     try {
       const accessToken = getAccessTokenFromAuthorizationHeader(req)
-      req.decoded = await verifyJWT(accessToken, keyFunctions)
-      req.token = accessToken
-    } catch (e) {
-      log.error(e)
+      ;(req as AuthenticatedRequest).decoded = await verifyJWT(accessToken, keyFunctions)
+      ;(req as AuthenticatedRequest).token = accessToken
+    } catch (e: any) {
+      log.error('Unexpected error in middleware', { error: { message: e.message, stack: e.stack } })
       return unauthorized(e)
     }
     next()
@@ -155,7 +174,9 @@ function secureExpressWithJWT (app, { getKey, jwksClient, paths = '/api', ignore
   }
 }
 
-function secureSocketIOWithJWT (io, { getKey, jwksClient, log = nullLogger }) {
+export function secureSocketIOWithJWT (io: Server, options: SocketIOOptions) {
+  let { getKey, jwksClient, log = nullLogger } = options
+
   if (getKey) {
     if (typeof getKey === 'function') {
       getKey = [getKey]
@@ -179,29 +200,22 @@ function secureSocketIOWithJWT (io, { getKey, jwksClient, log = nullLogger }) {
     throw new Error('Must specify getKey or jwksClient')
   }
 
-  io.use(async (socket, next) => {
+  io.use(async (socket: Socket, next) => {
     try {
       const { handshake: { query, auth } } = socket
-      let token
+      let token: string | undefined
       if (auth) {
-        // Socket.io v3+
         ;({ token } = auth)
-      } else {
-        ;({ token } = query)
       }
-      socket.decoded = await verifyJWT(token, keyFunctions)
-      socket.token = token
+      if (!token) {
+        token = query.token as string
+      }
+      ;(socket as any).decoded = await verifyJWT(token, keyFunctions)
+      ;(socket as any).token = token
       next()
-    } catch (e) {
-      log.error(`Failed to decode token: ${e}`)
-      return next(new Error('Authentication error: ' + e))
+    } catch (e: any) {
+      log.error('Failed to decode token', { error: { message: e.message, stack: e.stack } })
+      next(new Error('Authentication error: ' + e))
     }
   })
-}
-
-export {
-  secureExpressWithJWT,
-  secureSocketIOWithJWT,
-  getAllKeyFunctions,
-  verifyJWT
 }

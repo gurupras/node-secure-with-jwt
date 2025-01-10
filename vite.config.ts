@@ -15,6 +15,13 @@ export default defineConfig({
     }
   },
   test: {
-    setupFiles: ['./test/testSetup.js']
+    setupFiles: ['./test/testSetup.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: [
+        'text',
+        'html'
+      ]
+    }
   }
 })
