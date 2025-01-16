@@ -27,6 +27,7 @@ interface SocketIOOptions {
 export interface AuthenticatedRequest extends Request {
   decoded: any
   token: string
+  userID: string
 }
 
 const nullLogger: Logger = {
@@ -171,8 +172,9 @@ export function secureExpressWithJWT (app: Application, options: SecureOptions) 
     }
     try {
       const accessToken = getAccessTokenFromAuthorizationHeader(req)
-      ;(req as AuthenticatedRequest).decoded = await verifyJWT(accessToken, keyFunctions)
+      const decoded = (req as AuthenticatedRequest).decoded = await verifyJWT(accessToken, keyFunctions)
       ;(req as AuthenticatedRequest).token = accessToken
+      ;(req as AuthenticatedRequest).userID = decoded.sub
     } catch (e: any) {
       log.error('Unexpected error in middleware', { error: { message: e.message, stack: e.stack } })
       return unauthorized(e)
