@@ -1,7 +1,8 @@
 import jwt from 'jsonwebtoken'
 import cookieParser from 'cookie-parser'
 import { pathToRegexp } from 'path-to-regexp'
-import { Application, Request, Response, NextFunction } from 'express'
+import * as core from 'express-serve-static-core'
+import express, { Application, Request, Response, NextFunction } from 'express'
 import { Server, Socket } from 'socket.io'
 import { Logger } from '@gurupras/log'
 import { Options as JwksClientOptions, JwksClient } from 'jwks-rsa'
@@ -24,7 +25,13 @@ interface SocketIOOptions {
   log?: Logger;
 }
 
-export interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest<
+      P = core.ParamsDictionary,
+      ResBody = any,
+      ReqBody = any,
+      ReqQuery = core.Query,
+      Locals extends Record<string, any> = Record<string, any>
+    > extends Request<P, ResBody, ReqBody, ReqQuery, Locals> {
   decoded: any
   token: string
   userID: string
