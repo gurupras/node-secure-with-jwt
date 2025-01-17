@@ -165,6 +165,11 @@ export function secureExpressWithJWT (app: Application, options: SecureOptions) 
     return authorization.substring(7)
   }
 
+  function getAccessTokenFromCookie (req: Request): string {
+    const token = req.cookies?.access_token
+    return token ?? ''
+  }
+
   async function middleware (req: Request, res: Response, next: NextFunction) {
     const { originalUrl, headers: { authorization = '' } } = req
     const ignoreMatch = ignorePatterns.find(pattern => pattern.regexp.test(originalUrl))
@@ -177,14 +182,25 @@ export function secureExpressWithJWT (app: Application, options: SecureOptions) 
       log.error(`Failing request: ${req.url} due to token.`, { authorization, error })
       res.status(401).send('Unauthorized')
     }
-    try {
-      const accessToken = getAccessTokenFromAuthorizationHeader(req)
+
+    const validateTokenAndUpdateRequest = async (accessToken: string) => {
       const decoded = (req as AuthenticatedRequest).decoded = await verifyJWT(accessToken, keyFunctions)
       ;(req as AuthenticatedRequest).token = accessToken
       ;(req as AuthenticatedRequest).userID = decoded.sub
-    } catch (e: any) {
-      log.error('Unexpected error in middleware', { error: { message: e.message, stack: e.stack } })
-      return unauthorized(e)
+    }
+
+    // First, try cookie
+    try {
+      const accessToken = getAccessTokenFromCookie(req)
+      await validateTokenAndUpdateRequest(accessToken)
+    } catch (_) {
+      try {
+        const accessToken = getAccessTokenFromAuthorizationHeader(req)
+        await validateTokenAndUpdateRequest(accessToken)
+      } catch (e: any) {
+        log.error('Unexpected error in middleware', { error: { message: e.message, stack: e.stack } })
+        return unauthorized(e)
+      }
     }
     next()
   }
