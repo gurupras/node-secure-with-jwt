@@ -7,7 +7,7 @@ import { Server as SocketIOServer } from 'socket.io'
 import portfinder from 'portfinder'
 import { initialize as LogInitialize, Logger, getRootLogger } from '@gurupras/log'
 import { beforeEach, afterEach, describe, test, vitest, expect, beforeAll } from 'vitest'
-import { secureExpressWithJWT, secureSocketIOWithJWT } from '../index.js'
+import { secureExpressWithJWT, secureSocketIOWithJWT, createSecurityMiddleware, secureRouterWithJWT, validateOptions } from '../index.js'
 import { getJWTPrivateKey, getJWTPublicKey, setupSocket } from './utils.js'
 // @ts-ignore
 import { testForNoEvent } from '@gurupras/test-helpers'
@@ -91,6 +91,66 @@ describe('setupFakeJWT', () => {
         resolve()
       })
     })
+  })
+})
+
+describe('validateOptions', () => {
+  let data: any
+  beforeEach(() => {
+    data = { getKey }
+  })
+  describe.each(fields)('Property %s', (field, acceptedType) => {
+    const badValues = values.filter(x => x[0] !== acceptedType)
+    const goodValues = values.filter(x => x[0] === acceptedType)
+    test.each(badValues)('Fails on %s(%p)', async (type, value) => {
+      Object.assign(data, {
+        [field]: value
+      })
+      if (field === 'paths') {
+        // Paths are not required for socket.io
+        expect(() => validateOptions(data, { requirePaths: false })).not.toThrow()
+        expect(() => validateOptions(data, { requirePaths: true })).toThrow()
+      } else {
+        expect(() => validateOptions(data)).toThrow()
+      }
+    })
+    test.each(badValues)('Fails on [%s(%p)]', async (type, value) => {
+      Object.assign(data, {
+        [field]: [value]
+      })
+      if (field === 'paths') {
+        // Paths are not required for socket.io
+        expect(() => validateOptions(data, { requirePaths: false })).not.toThrow()
+        expect(() => validateOptions(data, { requirePaths: true })).toThrow()
+      } else {
+        expect(() => validateOptions(data)).toThrow()
+      }
+    })
+    test.each(goodValues)('Passes on %s(%p)', async (type, value) => {
+      Object.assign(data, {
+        [field]: value
+      })
+      expect(() => validateOptions(data)).not.toThrow()
+    })
+    test.each(goodValues)('Passes on [%s(%p)]', async (type, value) => {
+      Object.assign(data, {
+        [field]: [value]
+      })
+      expect(() => validateOptions(data)).not.toThrow()
+    })
+  })
+
+  test('Fails if no key-providing mechanism is specified', () => {
+    expect(() => validateOptions({})).toThrow('Must specify getKey or jwksClient')
+  })
+
+  test('Processes jwksClientOpts correctly', () => {
+    const jwksClientOpts = [
+      { jwksUri: 'https://www.googleapis.com/oauth2/v3/certs' },
+      { jwksUri: 'https://appleid.apple.com/auth/keys' }
+    ]
+    const { jwksClient } = validateOptions({ jwksClientOpts })
+    expect(jwksClient).toBeArrayOfSize(2)
   })
 })
 
@@ -281,8 +341,47 @@ describe('secureExpressWithJWT', () => {
     expect(response.status).toEqual(401)
   })
 
+  test('Accepts valid token from cookie', async () => {
+    const response = await request(app)
+      .get('/api/test')
+      .set('Cookie', `access_token=${accessToken}`)
+    expect(response.status).toBe(200)
+  })
+
   test('Accepts valid token', async () => {
     const response = await request(app)
+      .get('/api/test')
+      .set('Authorization', `Bearer ${accessToken}`)
+    expect(response.status).toBe(200)
+  })
+})
+
+describe('createSecurityMiddleware', () => {
+  test('Can be used to secure a single route', async () => {
+    const middleware = createSecurityMiddleware({ getKey, log })
+    app.get('/api/test', middleware, (req, res) => { res.send('OK') })
+    let response = await request(app)
+      .get('/api/test')
+    expect(response.status).toBe(401)
+    response = await request(app)
+      .get('/api/test')
+      .set('Authorization', `Bearer ${accessToken}`)
+    expect(response.status).toBe(200)
+  })
+})
+
+describe('secureRouterWithJWT', () => {
+  test('Can be used to secure a router', async () => {
+    const router = express.Router()
+    secureRouterWithJWT(router, { getKey, log, paths: '/test' })
+    router.get('/test', (req, res) => res.send('OK'))
+    app.use('/api', router)
+
+    let response = await request(app)
+      .get('/api/test')
+    expect(response.status).toBe(401)
+
+    response = await request(app)
       .get('/api/test')
       .set('Authorization', `Bearer ${accessToken}`)
     expect(response.status).toBe(200)

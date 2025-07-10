@@ -9,20 +9,19 @@ import { Options as JwksClientOptions, JwksClient } from 'jwks-rsa'
 
 export type KeyFunction = (header: jwt.JwtHeader, callback: (err: Error | null, key?: string) => void) => void;
 
-export interface SecureOptions {
+export interface BaseSecureOptions {
   getKey?: KeyFunction | KeyFunction[];
   jwksClientOpts?: Array<JwksClientOptions>
   jwksClient?: JwksClient | Array<JwksClient>
-  paths?: string | string[];
-  ignore?: string | string[];
   log?: Logger;
 }
 
-interface SocketIOOptions {
-  getKey?: KeyFunction | KeyFunction[];
-  jwksClientOpts?: Array<JwksClientOptions>
-  jwksClient?: JwksClient | Array<JwksClient>
-  log?: Logger;
+export interface ExpressOptions extends BaseSecureOptions {
+  paths?: string | string[];
+  ignore?: string | string[];
+}
+
+interface SocketIOOptions extends BaseSecureOptions {
 }
 
 export interface AuthenticatedRequest<
@@ -107,17 +106,15 @@ export async function verifyJWT (token: string, keyFunctions: KeyFunction[]): Pr
   throw err
 }
 
-export function secureExpressWithJWT (app: Application, options: SecureOptions) {
-  let { getKey, jwksClientOpts, jwksClient, paths = '/api', ignore = [], log = nullLogger } = options
-
-  if (typeof paths !== 'string' && !paths) {
-    throw new Error('Must specify at least one path')
-  } else {
-    if (typeof paths === 'string') {
-      paths = [paths]
-    }
-  }
-  checkArrayTypes('paths', paths, 'string')
+export function validateOptions (options: ExpressOptions, validationOptions: { requirePaths: boolean } = { requirePaths: true }): {
+  getKey: KeyFunction[] | undefined
+  jwksClient: JwksClient[] | undefined
+  ignore: string[]
+  log: Logger
+  paths: string[]
+  keyFunctions: KeyFunction[]
+} {
+  let { getKey, jwksClientOpts, jwksClient, ignore = [], log = nullLogger, paths = '/api' } = options
 
   if (ignore !== null && ignore !== undefined) {
     if (typeof ignore === 'string') {
@@ -151,11 +148,33 @@ export function secureExpressWithJWT (app: Application, options: SecureOptions) 
       jwksClient.push(client)
     }
   }
-  // We need to add cookieParser
-  app.use(cookieParser())
+
+  if (validationOptions.requirePaths) {
+    if (typeof paths !== 'string' && !paths) {
+      throw new Error('Must specify at least one path')
+    } else {
+      if (typeof paths === 'string') {
+        paths = [paths]
+      }
+    }
+    checkArrayTypes('paths', paths, 'string')
+  } else {
+    // We can set it to an empty array
+    paths = []
+  }
+
+  const keyFunctions = getAllKeyFunctions(getKey, jwksClient, log)
+  if (keyFunctions.length === 0) {
+    throw new Error('Must specify getKey or jwksClient')
+  }
+
+  return { getKey, jwksClient, ignore, log, paths, keyFunctions }
+}
+
+export function createSecurityMiddleware (options: ExpressOptions): express.Handler {
+  const { ignore, log, keyFunctions } = validateOptions(options)
 
   const ignorePatterns = ignore.map((x) => pathToRegexp(x, { end: false }))
-  const keyFunctions = getAllKeyFunctions(getKey, jwksClient, log)
 
   function getAccessTokenFromAuthorizationHeader (req: Request): string {
     const { headers: { authorization = '' } } = req
@@ -170,7 +189,7 @@ export function secureExpressWithJWT (app: Application, options: SecureOptions) 
     return token ?? ''
   }
 
-  async function middleware (req: Request, res: Response, next: NextFunction) {
+  return async function middleware (req: Request, res: Response, next: NextFunction) {
     const { originalUrl, headers: { authorization = '' } } = req
     const ignoreMatch = ignorePatterns.find(pattern => pattern.regexp.test(originalUrl))
     if (ignoreMatch) {
@@ -204,45 +223,31 @@ export function secureExpressWithJWT (app: Application, options: SecureOptions) 
     }
     next()
   }
+}
 
+export function secureExpressWithJWT (app: Application, options: ExpressOptions) {
+  const { paths } = validateOptions(options)
+
+  // We need to add cookieParser
+  app.use(cookieParser())
+
+  const middleware = createSecurityMiddleware(options)
   for (const path of paths) {
     app.use(path, middleware)
   }
 }
 
+export function secureRouterWithJWT (router: express.Router, options: ExpressOptions) {
+  const { paths } = validateOptions(options)
+
+  const middleware = createSecurityMiddleware(options)
+  for (const path of paths) {
+    router.use(path, middleware)
+  }
+}
+
 export function secureSocketIOWithJWT (io: Server, options: SocketIOOptions) {
-  let { getKey, jwksClientOpts, jwksClient, log = nullLogger } = options
-
-  if (getKey) {
-    if (typeof getKey === 'function') {
-      getKey = [getKey]
-    }
-  }
-  if (getKey !== undefined) {
-    checkArrayTypes('getKey', getKey, ['function'])
-  }
-
-  if (jwksClient !== undefined) {
-    if (!(jwksClient instanceof Array) && typeof jwksClient === 'object') {
-      jwksClient = [jwksClient]
-    }
-  }
-  if (jwksClient !== undefined) {
-    checkArrayTypes('jwksClient', jwksClient, 'object')
-  }
-
-  if (jwksClientOpts !== undefined && Array.isArray(jwksClientOpts)) {
-    for (const opts of jwksClientOpts) {
-      const client = new JwksClient(opts)
-      jwksClient = jwksClient || []
-      jwksClient.push(client)
-    }
-  }
-
-  const keyFunctions = getAllKeyFunctions(getKey, jwksClient, log)
-  if (keyFunctions.length === 0) {
-    throw new Error('Must specify getKey or jwksClient')
-  }
+  const { keyFunctions, log } = validateOptions(options, { requirePaths: false })
 
   io.use(async (socket: Socket, next) => {
     try {
@@ -254,7 +259,10 @@ export function secureSocketIOWithJWT (io: Server, options: SocketIOOptions) {
       if (!token) {
         token = query.token as string
       }
-      ;(socket as any).decoded = await verifyJWT(token, keyFunctions)
+      if (!token) {
+        throw new Error('No token found')
+      }
+      (socket as any).decoded = await verifyJWT(token, keyFunctions)
       ;(socket as any).token = token
       next()
     } catch (e: any) {
