@@ -386,6 +386,26 @@ describe('secureRouterWithJWT', () => {
       .set('Authorization', `Bearer ${accessToken}`)
     expect(response.status).toBe(200)
   })
+
+  test('Can secure a router mounted on a path when paths='/'', async () => {
+    const router = express.Router()
+    secureRouterWithJWT(router, { getKey, log, paths: '/' })
+    router.get('/test', (req, res) => res.send('OK'))
+    app.use('/api', router)
+    app.get('/not-secured', (req, res) => res.send('OK'))
+
+    let response = await request(app)
+      .get('/api/test')
+    expect(response.status).toBe(401)
+
+    response = await request(app)
+      .get('/api/test')
+      .set('Authorization', `Bearer ${accessToken}`)
+    expect(response.status).toBe(200)
+
+    response = await request(app).get('/not-secured')
+    expect(response.status).toBe(200)
+  })
 })
 
 describe('secureSocketIOWithJWT', () => {
